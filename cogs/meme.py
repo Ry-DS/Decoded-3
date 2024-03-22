@@ -4,7 +4,7 @@ import os
 import requests
 from discord.ext import commands
 from dotenv import load_dotenv
-from pymongo import MongoClient
+# from pymongo import MongoClient
 from requests.exceptions import HTTPError
 from schema import Schema, SchemaError, And, Regex
 
@@ -14,11 +14,11 @@ TOKEN = os.getenv('TOKEN')
 COMMAND = os.getenv('DISCORD_COMMAND_ROOT')
 BOTNAME = os.getenv('BOT_NAME')
 API_ROOT = os.getenv('MEME_API_ROOT')
-MONGODB_URI = os.getenv('MONGODB_URI')
+# MONGODB_URI = os.getenv('MONGODB_URI')
 DB = os.getenv('DB')
 COLLECTION = os.getenv('COLLECTION')
 
-collection = MongoClient(MONGODB_URI)[DB][COLLECTION]
+# collection = MongoClient(MONGODB_URI)[DB][COLLECTION]
 
 
 # all commands that this bot will respond to will begin with ";;bot_name"
@@ -120,32 +120,35 @@ class Meme(commands.Cog):
         except SchemaError as err:
             await ctx.send(err)
             pass
-        collection.insert_one(saved_meme)
+        # collection.insert_one(saved_meme)
         await ctx.send("Saved to database!")
         pass
 
     @commands.command()
     async def load_meme(self, ctx, arg1):
-        lookup_name = arg1
-        try:
-            found_meme = collection.find_one({"name": lookup_name})
-            await ctx.send(found_meme["url"])
-        except TypeError:
-            await ctx.send("Meme not found in database!")
-            pass
-        pass
+        await ctx.send("Can't do")
+        # lookup_name = arg1
+        # try:
+        #     found_meme = collection.find_one({"name": lookup_name})
+        #     await ctx.send(found_meme["url"])
+        # except TypeError:
+        #     await ctx.send("Meme not found in database!")
+        #     pass
+        # pass
 
     @commands.command()
     async def delete_meme(self, ctx, arg1):
-        lookup_name = arg1
-        try:
-            found_meme = collection.find_one({"name": lookup_name})
-        except TypeError:
-            await ctx.send("Meme not found in database!")
-            pass
-        collection.delete_one(found_meme)
-        await ctx.send("Meme was deleted from database!")
-        pass
+        await ctx.send("Can't do")
+        #
+        # lookup_name = arg1
+        # try:
+        #     found_meme = collection.find_one({"name": lookup_name})
+        # except TypeError:
+        #     await ctx.send("Meme not found in database!")
+        #     pass
+        # collection.delete_one(found_meme)
+        # await ctx.send("Meme was deleted from database!")
+        # pass
 
 
 async def setup(bot):

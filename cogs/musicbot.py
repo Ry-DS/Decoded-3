@@ -39,23 +39,38 @@ class MusicBot(commands.Cog):
             await ctx.voice_client.disconnect()
 
     @commands.command()
-    async def play(self, ctx, *, search: wavelink.YouTubeTrack):
+    async def play(self, ctx, *, search: str):
         if ctx.guild.id not in self.voice_clients:
             # Join the user's voice channel
             await self.join(ctx)
         if ctx.guild.id not in self.voice_clients:
             return
         voice = self.voice_clients[ctx.guild.id]
-        await voice.play(search)
-        embed = discord.Embed(
-            title=voice.source.title,
-            url=voice.source.uri,
-            description=f"Playing {voice.source.title} in {voice.channel}"
-        )
-        embed.set_image(url=voice.source.thumbnail)
-        if hasattr(ctx.author, 'avatar'):
-            embed.set_author(name=ctx.author.name, icon_url=ctx.author.avatar.url)
-        await ctx.send(embed=embed)
+
+        tracks: wavelink.Search = await wavelink.Playable.search(search)
+        if not tracks:
+            await ctx.send('Found nothing')
+            return
+
+        if isinstance(tracks, wavelink.Playlist):
+            # tracks is a playlist...
+            added: int = await voice.queue.put_wait(tracks)
+            await ctx.send(f"Added the playlist **`{tracks.name}`** ({added} songs) to the queue.")
+        else:
+            track: wavelink.Playable = tracks[0]
+            await voice.queue.put_wait(track)
+            embed = discord.Embed(
+                title=track.title,
+                url=track.uri,
+                description=f"Playing {track.title} in {voice.channel} ({voice.queue.count} items in queue)"
+            )
+            embed.set_image(url=track.artwork)
+            if hasattr(ctx.author, 'avatar'):
+                embed.set_author(name=ctx.author.name, icon_url=ctx.author.avatar.url)
+            await ctx.send(embed=embed)
+
+        if not voice.playing:
+            await voice.play(voice.queue.get())
 
     @commands.command()
     async def stop(self, ctx):
@@ -68,7 +83,8 @@ class MusicBot(commands.Cog):
     @commands.command()
     async def pause(self, ctx):
         if ctx.guild.id in self.voice_clients:
-            await self.voice_clients[ctx.guild.id].pause()
+            player = self.voice_clients[ctx.guild.id]
+            await player.pause(True)
             await ctx.send('Paused')
         else:
             await ctx.send('Not in a voice channel')
@@ -76,7 +92,7 @@ class MusicBot(commands.Cog):
     @commands.command()
     async def resume(self, ctx):
         if ctx.guild.id in self.voice_clients:
-            await self.voice_clients[ctx.guild.id].resume()
+            await self.voice_clients[ctx.guild.id].pause(False)
             await ctx.send('Resumed')
         else:
             await ctx.send('Not in a voice channel')
@@ -102,18 +118,22 @@ class MusicBot(commands.Cog):
 
         async def connect_wavefront():
             await self.client.wait_until_ready()
-            await wavelink.NodePool.create_node(
-                bot=self.client,
-                host='localhost',
-                port=2333,
-                password='youshallnotpass'
-            )
+            nodes = [wavelink.Node(uri="http://localhost:2333", password="youshallnotpass")]
+
+            # cache_capacity is EXPERIMENTAL. Turn it off by passing None
+            await wavelink.Pool.connect(nodes=nodes, client=self.client, cache_capacity=100)
 
         self.client.loop.create_task(connect_wavefront())
 
     @commands.Cog.listener()
-    async def on_wavelink_node_ready(self, node: wavelink.Node):
-        print(f'Connected to wavefront! ID: {node.identifier}')
+    async def on_wavelink_node_ready(self, node: wavelink.NodeReadyEventPayload):
+        print(f'Connected to wavefront! ID: {node.session_id}')
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_end(self, player: wavelink.Player, _, __):
+        if not player.queue.is_empty:
+            next_track = player.queue.get()
+            await player.play(next_track)
 
 
 async def setup(bot):
